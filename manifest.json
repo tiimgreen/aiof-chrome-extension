@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "AIOF",
+  "version": "0.0.1",
+  "description": "OnlyFans chatting assistant",
+  "permissions": [
+    "scripting",
+    "activeTab",
+    "declarativeContent"
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "OnlyFans chatting assistant"
+  }
+}
