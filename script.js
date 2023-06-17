@@ -175,6 +175,9 @@
     observer.observe(messageWindow, { subtree: false, childList: true });
 
     scrollUpAndScrape();
+
+    // if nothing happens after 5 seconds disconnect observer
+    disconnectTimeout = setTimeout(disconnectObserver, 5000);
   }
 
   async function init() {
