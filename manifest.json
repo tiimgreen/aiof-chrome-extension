@@ -11,5 +11,15 @@
   "action": {
     "default_popup": "index.html",
     "default_title": "OnlyFans chatting assistant"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-script.js"
+      ]
+    }
+  ]
 }
