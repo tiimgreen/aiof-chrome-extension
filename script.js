@@ -38,6 +38,7 @@ toggleAutoReply.onclick = function (event) {
       return chrome.tabs.sendMessage(tab.id, { command: "set_auto_reply_enabled", value: autoReplyEnabled });
     })
     .then((response) => {
+      console.log({ response });
       if (response.message == "received") {
         toggleAutoReply.innerText = autoReplyEnabled ? "Disable auto-reply" : "Enable auto-reply";
         document.getElementById("auto-reply-status").innerText = autoReplyEnabled ? "enabled" : "disabled";

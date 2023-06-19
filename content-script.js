@@ -317,14 +317,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.command) {
     case "scrape_all_conversations":
       scrapeAllConversations();
-      sendResponse({ message: "received " });
+      sendResponse({ message: "received" });
     case "scrape_visible_conversation":
       scrapeVisibleConversation();
-      sendResponse({ message: "received " });
+      sendResponse({ message: "received" });
     case "set_auto_reply_enabled":
       setAutoReplyEnabled(request.value);
-      sendResponse({ message: "received " });
+      sendResponse({ message: "received" });
     default:
-      sendResponse({ message: "unrecognised-command " });
+      sendResponse({ message: "unrecognised-command" });
   }
 });
