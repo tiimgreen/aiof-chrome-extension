@@ -1,3 +1,7 @@
+let autoReplyEnabled = true;
+
+const CHAT_MAIN_CONTAINER_IDENT = ".b-chats__conversations-content";
+
 const CHAT_LIST_IDENT = ".b-chats__list-wrapper";
 const CHAT_LIST_ITEM_IDENT = ".swipeout-list-item";
 const CHAT_LIST_ITEM_LINK_IDENT = ".b-chats__item__link";
@@ -8,6 +12,7 @@ const MESSAGE_BLOCK_DATE_IDENT = ".b-chat__messages__time";
 const MESSAGE_IDENT = ".b-chat__message";
 const MESSAGE_TEXT_CONT_IDENT = ".b-chat__message__text";
 const MESSAGE_TIME_IDENT = ".b-chat__message__time";
+const MESSAGE_SUBSCRIBE_BLOCK = ".b-subscribe-block";
 
 const CHAT_SCROLLBAR_CONTAINER_IDENT = ".b-chats__scrollbar";
 
@@ -28,6 +33,33 @@ const MONTHS = [
   "Nov",
   "Dec"
 ];
+
+const waitForElem = async (selector) => {
+  return new Promise(resolve => {
+    if (document.querySelector(selector)) {
+      return resolve(document.querySelector(selector));
+    }
+
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(selector)) {
+        resolve(document.querySelector(selector));
+        observer.disconnect();
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  });
+};
+
+let currentUsername = null;
+
+waitForElem(".l-sidebar__avatar")
+  .then((currentUserAvatar) => {
+    currentUsername = currentUserAvatar.getAttribute("href").substring(1);
+  });
 
 const scrapeVisibleConversation = async () => {
   return new Promise((resolve) => {
@@ -91,10 +123,28 @@ const scrapeVisibleConversation = async () => {
 
       const text = getPlainText(messageBodyElem);
 
-      const avatarHref = messageAvatarLinkElem.getAttribute("href");
-      const username = avatarHref.substring(1);
+      let username = null;
+      if (messageAvatarLinkElem) {
+        // sent from someone else
+        const avatarHref = messageAvatarLinkElem.getAttribute("href");
+        username = avatarHref.substring(1);
+      } else {
+        // sent from current user
+        username = currentUsername;
+      }
+
+      let type = "plain-text";
+
+      if (messageElem.querySelector(MESSAGE_SUBSCRIBE_BLOCK)) {
+        type = "locked-content";
+      } else if (messageElem.querySelector(".img-responsive")) {
+        type = "image";
+      } else if (messageElem.querySelector(".video-js")) {
+        type = "video";
+      }
 
       return {
+        type: type,
         text: text,
         datetime: datetimeString,
         hash: hashString(`${datetimeString}_${text}`),
@@ -218,8 +268,6 @@ const isOnChatForCreator = async (creatorUsername) => {
 }
 
 const waitForChatToChangeToCreator = async (creatorUsername) => {
-  const CHAT_MAIN_CONTAINER_IDENT = ".b-chats__conversations-content";
-
   return new Promise((resolve) => {
     const mainContentElem = document.querySelector(CHAT_MAIN_CONTAINER_IDENT);
 
@@ -259,7 +307,11 @@ const scrapeAllConversations = async () => {
     const messages = await scrapeVisibleConversation();
     console.log(messages);
   }
-}
+};
+
+const setAutoReplyEnabled = (enabled) => {
+  autoReplyEnabled = enabled;
+};
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.command) {
@@ -268,6 +320,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ message: "received " });
     case "scrape_visible_conversation":
       scrapeVisibleConversation();
+      sendResponse({ message: "received " });
+    case "set_auto_reply_enabled":
+      setAutoReplyEnabled(request.value);
       sendResponse({ message: "received " });
     default:
       sendResponse({ message: "unrecognised-command " });
