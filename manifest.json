@@ -3,10 +3,21 @@
   "name": "AIOF",
   "version": "0.0.1",
   "description": "OnlyFans chatting assistant",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "inject.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "permissions": [
     "scripting",
     "activeTab",
-    "declarativeContent"
+    "declarativeContent",
+    "declarativeNetRequest"
   ],
   "action": {
     "default_popup": "index.html",

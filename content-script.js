@@ -3,8 +3,9 @@ let autoReplyEnabled = true;
 const CHAT_MAIN_CONTAINER_IDENT = ".b-chats__conversations-content";
 
 const CHAT_LIST_IDENT = ".b-chats__list-wrapper";
-const CHAT_LIST_ITEM_IDENT = ".swipeout-list-item";
+const CHAT_LIST_ITEM_IDENT = ".b-chats__item";
 const CHAT_LIST_ITEM_LINK_IDENT = ".b-chats__item__link";
+const CHAT_LIST_ITEM_UNREAD_IDENT = ".b-chats__item__uread-count";
 
 const MESSAGE_WINDOW_IDENT = ".b-chat__messages-wrapper";
 const MESSAGE_BLOCKS_IDENT = ".b-chat__item-message";
@@ -13,11 +14,15 @@ const MESSAGE_IDENT = ".b-chat__message";
 const MESSAGE_TEXT_CONT_IDENT = ".b-chat__message__text";
 const MESSAGE_TIME_IDENT = ".b-chat__message__time";
 const MESSAGE_SUBSCRIBE_BLOCK = ".b-subscribe-block";
+const MESSAGE_PAYMENT_STATE_IDENT = ".b-chat__message__payment-state";
 
 const CHAT_SCROLLBAR_CONTAINER_IDENT = ".b-chats__scrollbar";
 
 const DATE_REGEX = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ([12][0-9]|3[01]|[1-9])(, (20\d\d))?$/;
 const HOUR_12_TIME_REGEX = /^(1[0-2]|0?[1-9]):([0-5]?[0-9])( ?([ap]m))?$/;
+
+const POST_MESSAGES_URL = "https://us-central1-aoif-390417.cloudfunctions.net/postMessages";
+// const POST_MESSAGES_URL = "https://sdddd.free.beeceptor.com";
 
 const MONTHS = [
   "Jan",
@@ -33,6 +38,80 @@ const MONTHS = [
   "Nov",
   "Dec"
 ];
+
+const AVATAR_IMG_SRC_REGEX = /^https:\/\/public\.onlyfans\.com\/files\/thumbs(\/[^\/]+)*\/([0-9]+)\/avatar\.jpg$/;
+
+
+
+const script = document.createElement("script");
+script.src = chrome.runtime.getURL("inject.js");
+script.onload = function () {
+  this.remove();
+};
+(document.head || document.documentElement).appendChild(script);
+
+document.addEventListener("of_messages_received", function (e) {
+  const { list, hasMore } = JSON.parse(e.detail);
+
+  const chatUsername = getCurrentChatUsername();
+
+  let creator;
+  let consumer;
+
+  // get list of unique IDs of chat participants
+  const participantIds = list
+    .map(({ fromUser }) => fromUser.id)
+    .filter((value, index, array) => array.indexOf(value) === index);
+
+  // must be the other participant
+  const otherUserId = participantIds.filter((id) => id !== currentUserId)[0];
+
+  if (isCreator) {
+    creator = {
+      id: currentUserId,
+      username: currentUsername,
+    };
+
+    consumer = {
+      id: otherUserId,
+      username: chatUsername,
+    };
+  } else {
+    creator = {
+      id: otherUserId,
+      username: chatUsername,
+    };
+
+    consumer = {
+      id: currentUserId,
+      username: currentUsername,
+    };
+  }
+
+  const formattedMessages = list.map(({ id, text, createdAt, fromUser }) => {
+    return {
+      id,
+      text,
+      from_user_id: fromUser.id,
+      sent_at: createdAt,
+    };
+  });
+
+  // if (formattedMessages.length > 0) {
+  //   postMessages(formattedMessages, creator, consumer)
+  //     .catch((error) => {
+  //       console.log(error);
+  //     });
+  // }
+});
+
+
+
+const newMessageObserver = new MutationObserver(function (mutationsList) {
+  mutationsList.forEach(function (mutation) {
+    console.log({ mutation });
+  });
+});
 
 const waitForElem = async (selector) => {
   return new Promise(resolve => {
@@ -55,11 +134,45 @@ const waitForElem = async (selector) => {
 };
 
 let currentUsername = null;
+let currentUserId = null;
+
+// TODO: change this
+const isCreator = false;
 
 waitForElem(".l-sidebar__avatar")
   .then((currentUserAvatar) => {
     currentUsername = currentUserAvatar.getAttribute("href").substring(1);
   });
+
+waitForElem(".g-avatar__img-wrapper > img")
+  .then((avatarImg) => {
+    const match = avatarImg.getAttribute("src").match(AVATAR_IMG_SRC_REGEX);
+    currentUserId = Number(match[2]);
+  });
+
+
+waitForElem(CHAT_LIST_IDENT)
+  .then(() => {
+    ingestUnreadMessages();
+  });
+
+const postMessages = async (messages, creator, consumer) => {
+  return fetch(POST_MESSAGES_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: JSON.stringify({
+      data: {
+        messages,
+        creator,
+        consumer,
+      },
+    }),
+  })
+    .then((res) => res.json())
+}
 
 const scrapeVisibleConversation = async () => {
   return new Promise((resolve) => {
@@ -212,17 +325,9 @@ const scrapeVisibleConversation = async () => {
     const allMessages = [];
     let mostRecentMessageHash = null;
 
-    function scrollUpAndScrape() {
+    function scrollUp() {
       const chatScrollWindow = document.querySelector(CHAT_SCROLLBAR_CONTAINER_IDENT);
       chatScrollWindow.scrollTo({ top: 0, behavior: "smooth" });
-
-      const messages = grabMessages();
-
-      if (messages.length > 0) {
-        mostRecentMessageHash = messages[0].hash;
-      }
-
-      allMessages.push(...messages);
     };
 
     const observer = new MutationObserver(function (mutationsList) {
@@ -231,7 +336,7 @@ const scrapeVisibleConversation = async () => {
           if (mutation.addedNodes.length > 0) {
             // nodes added, scroll again
             setTimeout(() => {
-              scrollUpAndScrape();
+              scrollUp();
 
               clearTimeout(disconnectTimeout);
               // if nothing happens after 5 seconds disconnect observer
@@ -251,21 +356,24 @@ const scrapeVisibleConversation = async () => {
 
     observer.observe(messageWindow, { subtree: true, childList: true });
 
-    scrollUpAndScrape();
+    scrollUp();
 
     // if nothing happens after 5 seconds disconnect observer
     disconnectTimeout = setTimeout(disconnectObserver, 5000);
   });
-}
+};
 
-const isOnChatForCreator = async (creatorUsername) => {
+const getCurrentChatUsername = () => {
   const mainContentElem = document.querySelector(CHAT_MAIN_CONTAINER_IDENT);
   const chatHeader = mainContentElem.querySelector(".b-chat__header__title");
   const nameWrapper = chatHeader.querySelector(".g-user-realname__wrapper");
-  const currentUsername = nameWrapper.getAttribute("href").substring(1);
 
-  return currentUsername === creatorUsername;
-}
+  return nameWrapper.getAttribute("href").substring(1);
+};
+
+const isOnChatForCreator = async (creatorUsername) => {
+  return getCurrentChatUsername() === creatorUsername;
+};
 
 const waitForChatToChangeToCreator = async (creatorUsername) => {
   return new Promise((resolve) => {
@@ -295,7 +403,6 @@ const scrapeAllConversations = async () => {
   const chatListItems = [...chatList.querySelectorAll(CHAT_LIST_ITEM_IDENT)];
 
   for (const chatListItem of chatListItems) {
-
     const avatarLink = chatListItem.querySelector("a.g-avatar");
     const creatorUsername = avatarLink.getAttribute("href").substring(1);
 
@@ -309,8 +416,30 @@ const scrapeAllConversations = async () => {
   }
 };
 
+const ingestUnreadMessages = () => {
+  const chatList = document.querySelector(CHAT_LIST_IDENT);
+  const chatListItems = [...chatList.querySelectorAll(CHAT_LIST_ITEM_IDENT)];
+
+  const itemsWithUnread = chatListItems.filter((chatListItem) => {
+    return Boolean(chatListItem.querySelector(CHAT_LIST_ITEM_UNREAD_IDENT));
+  });
+
+  // for (const unreadChat of itemsWithUnread) {
+  //   const chatLink = unreadChat.querySelector(CHAT_LIST_ITEM_LINK_IDENT);
+  //   chatLink.click();
+  //   break;
+  // }
+}
+
 const setAutoReplyEnabled = (enabled) => {
   autoReplyEnabled = enabled;
+
+  if (autoReplyEnabled) {
+    const chatList = document.querySelector(CHAT_LIST_IDENT);
+    newMessageObserver.observe(chatList, { subtree: true, childList: true });
+  } else {
+    newMessageObserver.disconnect();
+  }
 };
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
