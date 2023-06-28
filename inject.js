@@ -4,7 +4,8 @@
   const send = XHR.send;
   const setRequestHeader = XHR.setRequestHeader;
 
-  const MESSAGES_ENDPOINT_REGEX = /https:\/\/onlyfans.com\/api2\/v2\/chats\/([0-9]+)\/messages/;
+  const MESSAGES_ENDPOINT_REGEX = /^https:\/\/onlyfans.com\/api2\/v2\/chats\/([0-9]+)\/messages/;
+  const NEW_MESSAGE_ENDPOINT_REGEX = /^https:\/\/onlyfans.com\/api2\/v2\/users\/list\?m\[\]=/;
 
   XHR.open = function (method, url) {
     this._method = method;
@@ -24,9 +25,12 @@
       const endTime = (new Date()).toISOString();
       const myUrl = this._url ? this._url.toLowerCase() : this._url;
 
-      if (myUrl && myUrl.match(MESSAGES_ENDPOINT_REGEX)) {
-        console.log(myUrl);
-        document.dispatchEvent(new CustomEvent("of_messages_received", { url: myUrl, detail: this.response }));
+      if (myUrl) {
+        if (myUrl.match(MESSAGES_ENDPOINT_REGEX)) {
+          document.dispatchEvent(new CustomEvent("aiof_messages_received", { url: myUrl, detail: this.response }));
+        } else if (myUrl.match(NEW_MESSAGE_ENDPOINT_REGEX)) {
+          document.dispatchEvent(new CustomEvent("aiof_new_message_received", { url: myUrl, detail: this.response }));
+        }
       }
     });
 

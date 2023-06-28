@@ -1,4 +1,4 @@
-let autoReplyEnabled = true;
+let autoReplyEnabled = false;
 
 const scrapeCurrentConvButton = document.getElementById("scrape-current-conversation");
 const scrapeAllConvsButton = document.getElementById("scrape-all-conversations");
@@ -32,6 +32,7 @@ toggleAutoReply.onclick = function (event) {
   event.preventDefault();
 
   autoReplyEnabled = !autoReplyEnabled;
+  console.log({ autoReplyEnabled });
 
   chrome.tabs.query({ active: true, lastFocusedWindow: true })
     .then(([tab]) => {
